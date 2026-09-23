@@ -31,7 +31,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from esp_writer import Record, Script, build_plugin, vmad, zstring
+from esp_writer import TES4_LIGHT, Record, Script, build_plugin, vmad, zstring
 
 PLUGIN_NAME = 'StarCoreAndCappyMarkers.esp'
 
@@ -41,6 +41,10 @@ PLUGIN_NAME = 'StarCoreAndCappyMarkers.esp'
 STARCORE_QUEST_ID = 0x01000810
 CAPPY_QUEST_ID = 0x01000811
 NEXT_OBJECT_ID = 0x00000812
+
+# ESL-флаг (ESPFE): файл остаётся .esp, но не занимает слот из 254. Условие —
+# все свои FormID в диапазоне 0x800..0xFFF; обе записи в нём уже с первой сборки.
+ESL = True
 
 # Must match SCCM:MarkerQuestBase.
 OBJECTIVE_INDEX = 10
@@ -104,7 +108,13 @@ def build_quests():
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'build', PLUGIN_NAME)
-    blob = build_plugin(['Fallout4.esm'], [(b'QUST', build_quests())], NEXT_OBJECT_ID)
+    quests = build_quests()
+    if ESL:
+        bad = [q.form_id for q in quests if not 0x800 <= (q.form_id & 0xFFFFFF) <= 0xFFF]
+        if bad:
+            raise SystemExit('FormID вне диапазона ESL 0x800..0xFFF: %s' % ', '.join('%08X' % v for v in bad))
+    blob = build_plugin(['Fallout4.esm'], [(b'QUST', quests)], NEXT_OBJECT_ID,
+                        flags=TES4_LIGHT if ESL else 0)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, 'wb') as f:
         f.write(blob)

@@ -109,9 +109,10 @@ def vmad(scripts):
 class Record:
     """Запись .esp: сигнатура, FormID, упорядоченный список сабрекордов."""
 
-    def __init__(self, sig, form_id, editor_id=None):
+    def __init__(self, sig, form_id, editor_id=None, flags=0):
         self.sig = sig if isinstance(sig, bytes) else sig.encode('ascii')
         self.form_id = form_id
+        self.flags = flags
         self.subs = []
         if editor_id is not None:
             self.add(b'EDID', zstring(editor_id))
@@ -127,7 +128,7 @@ class Record:
 
     def to_bytes(self):
         body = b''.join(struct.pack('<4sH', tag, len(p)) + p for tag, p in self.subs)
-        head = struct.pack('<4sIIIIHH', self.sig, len(body), 0, self.form_id,
+        head = struct.pack('<4sIIIIHH', self.sig, len(body), self.flags, self.form_id,
                            REC_REVISION, REC_VERSION, 0)
         return head + body
 
@@ -139,8 +140,12 @@ def top_group(records):
     return struct.pack('<4sIIIQ', b'GRUP', len(body) + 24, label, 0, 0) + body
 
 
-def tes4(masters, num_records, next_object_id, version=0.95):
-    r = Record(b'TES4', 0)
+# Флаги записи TES4.
+TES4_LIGHT = 0x200   # ESL: плагин не занимает слот порядка загрузки (FE xxx)
+
+
+def tes4(masters, num_records, next_object_id, version=0.95, flags=0):
+    r = Record(b'TES4', 0, flags=flags)
     r.add(b'HEDR', struct.pack('<fiI', version, num_records, next_object_id))
     r.add(b'CNAM', zstring('DEFAULT'))
     for m in masters:
@@ -150,7 +155,7 @@ def tes4(masters, num_records, next_object_id, version=0.95):
     return r
 
 
-def build_plugin(masters, groups_by_sig, next_object_id):
+def build_plugin(masters, groups_by_sig, next_object_id, flags=0):
     """
     groups_by_sig — список (sig, [Record, ...]) в том порядке, в каком группы
     должны лечь в файл. Число записей в HEDR считает и записи, и группы:
@@ -158,7 +163,7 @@ def build_plugin(masters, groups_by_sig, next_object_id):
     """
     groups = [(sig, recs) for sig, recs in groups_by_sig if recs]
     num = sum(len(recs) for _, recs in groups) + len(groups)
-    out = [tes4(masters, num, next_object_id).to_bytes()]
+    out = [tes4(masters, num, next_object_id, flags=flags).to_bytes()]
     for _, recs in groups:
         out.append(top_group(recs))
     return b''.join(out)

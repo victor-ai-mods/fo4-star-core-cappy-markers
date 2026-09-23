@@ -60,6 +60,12 @@ The script resolves every vanilla form with `Game.GetFormFromFile(..., "DLCNukaW
 so the plugin's only master is `Fallout4.esm`. It overrides no vanilla record, conflicts
 with nothing, and can be removed at any time.
 
+### ESL-flagged
+
+The plugin keeps its `.esp` name but carries the ESL (light) flag, so it does not take one
+of the 254 load-order slots. Both records sit in the light range `0x800..0xFFF`;
+`tools/gen_esp.py` refuses to build a flagged plugin with a FormID outside it.
+
 ## Using it
 
 Both quests sit in Pip-Boy → **Misc**, and can be tracked independently. Track the
