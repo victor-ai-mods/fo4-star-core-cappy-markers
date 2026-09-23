@@ -1,0 +1,11 @@
+# Сгенерированное: esp из tools/gen_esp.py, .pex из PapyrusCompiler (см. README, раздел «Build»)
+build/
+
+# Логи мода и игры, временные файлы
+*.log
+__pycache__/
+*.pyc
+
+# Материалы страницы на Nexus: архив релиза, обложка и скриншоты
+release/
+images/
