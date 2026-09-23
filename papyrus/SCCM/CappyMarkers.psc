@@ -1,4 +1,4 @@
-Scriptname NWCM:CappyMarkers extends NWCM:MarkerQuestBase
+Scriptname SCCM:CappyMarkers extends SCCM:MarkerQuestBase
 {Markers for the hidden Cappys of "Cappy in a Haystack" that are still unfound.
 
 Each of the 10 placed DLC04MS01CappyActivator refs sets its own stage on DLC04MS01

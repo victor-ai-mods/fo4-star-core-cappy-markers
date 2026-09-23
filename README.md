@@ -1,4 +1,4 @@
-# Nuka-World Collectible Markers
+# Star Core and Cappy Markers
 
 A Fallout 4 mod. **Requires Nuka-World.**
 
@@ -26,7 +26,7 @@ state that already lives in the save file.
 
 ## How it works
 
-Two new `QUST` records — `NWCM_StarCoreQuest` and `NWCM_CappyQuest`, both Start Game
+Two new `QUST` records — `SCCM_StarCoreQuest` and `SCCM_CappyQuest`, both Start Game
 Enabled, type *Miscellaneous*. Each has one empty ref-collection alias and one objective
 whose `QSTA` target is that alias. Targeting a ref collection makes the engine draw one
 marker per ref — the same pattern vanilla uses for `Min02`/EggClutches and
@@ -36,8 +36,8 @@ marker per ref — the same pattern vanilla uses for `Min02`/EggClutches and
 tracks a whole quest rather than a single objective: two objectives sharing a quest can
 only ever be tracked together.
 
-Each quest's script (`NWCM:StarCoreMarkers` / `NWCM:CappyMarkers`, sharing
-`NWCM:MarkerQuestBase` for the timer and objective plumbing) refills its collection:
+Each quest's script (`SCCM:StarCoreMarkers` / `SCCM:CappyMarkers`, sharing
+`SCCM:MarkerQuestBase` for the timer and objective plumbing) refills its collection:
 
 **Star Cores** — `DLC04GZTrackingQuest` (`0101E34C`) holds six ref-collection aliases,
 one per zone (ids 42–47), and `dlc04gztrackingqueststarcorecollection.pex` calls
@@ -69,7 +69,7 @@ you don't. Map markers show either way.
 ## Diagnostics
 
 With Papyrus user logging enabled in the ini, the script writes to
-`Logs\Script\User\NWCM.0.log` — which vanilla quests it resolved, the per-zone counts it
+`Logs\Script\User\SCCM.0.log` — which vanilla quests it resolved, the per-zone counts it
 read out of `DLC04GZTrackingQuest`, and the remaining totals. It only writes when one of
 those changes, never once per poll, and the calls are no-ops with logging off.
 
@@ -82,8 +82,8 @@ python tools/gen_esp.py
     -o="build\scripts" -f="Institute_Papyrus_Flags.flg" -all
 ```
 
-Outputs `build/NukaWorldCollectibleMarkers.esp` and three `build/scripts/NWCM/*.pex`.
-Install to `Data/` and `Data/Scripts/NWCM/` respectively, and enable the plugin.
+Outputs `build/StarCoreAndCappyMarkers.esp` and three `build/scripts/SCCM/*.pex`.
+Install to `Data/` and `Data/Scripts/SCCM/` respectively, and enable the plugin.
 
 `tools/gen_esp.py` documents the QUST byte layout, including the non-obvious one: a
 **Ref Collection Alias is its own array entry** — `ALCS` (alias id) + `ALMI` (max initial

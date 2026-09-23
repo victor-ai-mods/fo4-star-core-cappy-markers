@@ -1,5 +1,5 @@
 """
-Builds NukaWorldCollectibleMarkers.esp from scratch.
+Builds StarCoreAndCappyMarkers.esp from scratch.
 
 The plugin is deliberately tiny: two new QUST records, one per collectible type. It
 overrides nothing, and it references no form from DLCNukaWorld.esm, so it carries no
@@ -33,7 +33,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from esp_writer import Record, Script, build_plugin, vmad, zstring
 
-PLUGIN_NAME = 'NukaWorldCollectibleMarkers.esp'
+PLUGIN_NAME = 'StarCoreAndCappyMarkers.esp'
 
 # 0x800 was the single combined quest shipped by the first build. Both quests get a
 # fresh FormID so that old record disappears from an existing save outright, instead
@@ -42,7 +42,7 @@ STARCORE_QUEST_ID = 0x01000810
 CAPPY_QUEST_ID = 0x01000811
 NEXT_OBJECT_ID = 0x00000812
 
-# Must match NWCM:MarkerQuestBase.
+# Must match SCCM:MarkerQuestBase.
 OBJECTIVE_INDEX = 10
 COLLECTION_ALIAS = 0
 
@@ -90,14 +90,14 @@ def marker_quest(form_id, editor_id, script_name, quest_name, objective_text, al
 
 def build_quests():
     return [
-        marker_quest(STARCORE_QUEST_ID, 'NWCM_StarCoreQuest', 'NWCM:StarCoreMarkers',
+        marker_quest(STARCORE_QUEST_ID, 'SCCM_StarCoreQuest', 'SCCM:StarCoreMarkers',
                      'Nuka-World: Star Cores',
                      'Find the remaining Star Cores',
-                     'NWCM_RemainingStarCores'),
-        marker_quest(CAPPY_QUEST_ID, 'NWCM_CappyQuest', 'NWCM:CappyMarkers',
+                     'SCCM_RemainingStarCores'),
+        marker_quest(CAPPY_QUEST_ID, 'SCCM_CappyQuest', 'SCCM:CappyMarkers',
                      'Nuka-World: Hidden Cappys',
                      'Find the remaining hidden Cappys',
-                     'NWCM_RemainingCappys'),
+                     'SCCM_RemainingCappys'),
     ]
 
 

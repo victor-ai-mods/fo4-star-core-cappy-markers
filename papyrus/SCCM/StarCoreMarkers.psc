@@ -1,4 +1,4 @@
-Scriptname NWCM:StarCoreMarkers extends NWCM:MarkerQuestBase
+Scriptname SCCM:StarCoreMarkers extends SCCM:MarkerQuestBase
 {Markers for the Star Cores still out there.
 
 Which cores are left is never tracked by this mod. DLC04GZTrackingQuest holds six

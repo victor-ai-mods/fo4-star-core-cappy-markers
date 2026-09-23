@@ -1,4 +1,4 @@
-Scriptname NWCM:MarkerQuestBase extends Quest
+Scriptname SCCM:MarkerQuestBase extends Quest
 {Shared plumbing for the collectible marker quests.
 
 Each collectible type gets its OWN quest rather than its own objective on a shared one,
@@ -18,9 +18,9 @@ Int Property POLL_TIMER = 1 AutoReadOnly Hidden
 
 String Property NUKAWORLD = "DLCNukaWorld.esm" AutoReadOnly Hidden
 
-; Diagnostics land in Logs\Script\User\NWCM.0.log when Papyrus user logging is on in
+; Diagnostics land in Logs\Script\User\SCCM.0.log when Papyrus user logging is on in
 ; the ini; with it off these calls are a no-op. Written only on change, never per poll.
-String Property LOG_NAME = "NWCM" AutoReadOnly Hidden
+String Property LOG_NAME = "SCCM" AutoReadOnly Hidden
 
 Int lastCount = -1
 
