@@ -1,9 +1,11 @@
 """
 Builds StarCoreAndCappyMarkers.esp from scratch.
 
-The plugin is deliberately tiny: two new QUST records, one per collectible type. It
-overrides nothing, and it references no form from DLCNukaWorld.esm, so it carries no
-DLC master - the scripts resolve the vanilla quests/refs at runtime with
+The plugin is deliberately small: two new QUST records, one per collectible type, plus
+persistent overrides of the five Star Cores outside the Galactic Zone (see
+vanilla_overrides.py - they are temporary refs in vanilla, which Game.GetFormFromFile()
+cannot reach while their cell is unloaded). Those overrides are the only reason for the
+DLCNukaWorld.esm master; the scripts still resolve every vanilla form at runtime with
 Game.GetFormFromFile().
 
 One quest per collectible type, rather than one quest with two objectives, because
@@ -31,15 +33,20 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from esp_writer import TES4_LIGHT, Record, Script, build_plugin, vmad, zstring
+from esp_writer import TES4_LIGHT, Record, Script, tes4, top_group, vmad, zstring
+import vanilla_overrides
 
 PLUGIN_NAME = 'StarCoreAndCappyMarkers.esp'
 
 # 0x800 was the single combined quest shipped by the first build. Both quests get a
 # fresh FormID so that old record disappears from an existing save outright, instead
 # of surviving with one objective and one alias fewer than the save has baked in.
-STARCORE_QUEST_ID = 0x01000810
-CAPPY_QUEST_ID = 0x01000811
+# Own records carry the index after the masters: 02 since DLCNukaWorld.esm became the
+# second master in 1.1.0 (01 before). A save stores plugin names, not this byte, so
+# the quests keep their identity across the change.
+MASTERS = ['Fallout4.esm', 'DLCNukaWorld.esm']
+STARCORE_QUEST_ID = 0x02000810
+CAPPY_QUEST_ID = 0x02000811
 NEXT_OBJECT_ID = 0x00000812
 
 # ESL-флаг (ESPFE): файл остаётся .esp, но не занимает слот из 254. Условие —
@@ -113,8 +120,12 @@ def main():
         bad = [q.form_id for q in quests if not 0x800 <= (q.form_id & 0xFFFFFF) <= 0xFFF]
         if bad:
             raise SystemExit('FormID вне диапазона ESL 0x800..0xFFF: %s' % ', '.join('%08X' % v for v in bad))
-    blob = build_plugin(['Fallout4.esm'], [(b'QUST', quests)], NEXT_OBJECT_ID,
-                        flags=TES4_LIGHT if ESL else 0)
+    # Top groups in the vanilla order: CELL, WRLD, QUST.
+    cell_top, wrld_top, override_count = vanilla_overrides.build()
+    quest_top = top_group(quests)
+    num = override_count + len(quests) + 1
+    blob = tes4(MASTERS, num, NEXT_OBJECT_ID, flags=TES4_LIGHT if ESL else 0).to_bytes() \
+        + cell_top + wrld_top + quest_top
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, 'wb') as f:
         f.write(blob)

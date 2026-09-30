@@ -5,7 +5,14 @@ Which cores are left is never tracked by this mod. DLC04GZTrackingQuest holds si
 ref-collection aliases (ids 42-47, one per Galactic Zone area) and its own script
 calls RemoveRef() the instant a core is taken, so those collections ARE the list of
 remaining cores - already correct in a save where the hunt is half done, and unable
-to resurrect a core that was already picked up.}
+to resurrect a core that was already picked up.
+
+The sixth of them, 47 GalacticZoneOutsideCores, is the exception: it has no fill data
+at all in DLCNukaWorld.esm and is only ever used as the fallback bucket a core reports
+to when it belongs to no zone collection. It stays empty forever, so the five cores
+outside the Galactic Zone - the "[n] in other park sectors" line on the Star Control
+terminal, which is read off the DLC04GZ_StarCores_Outside* globals instead - have to
+be named here by hand.}
 
 Int Property TRACKING_QUEST = 0x0101E34C AutoReadOnly Hidden	; DLC04GZTrackingQuest
 ; DLC04GZTrackingQuest alias 2: panels that have been emptied (or locked shut).
@@ -13,11 +20,27 @@ Int Property ALIAS_LOCKED_PANELS = 2 AutoReadOnly Hidden
 
 Quest trackingQuest
 Int[] coreAliases
+ObjectReference[] outsideCores
 Int lastRawCount = -1
 
 Function Resolve()
 	trackingQuest = Game.GetFormFromFile(TRACKING_QUEST, NUKAWORLD) as Quest
 	Debug.TraceUser(LOG_NAME, "resolved DLC04GZTrackingQuest = " + trackingQuest)
+
+	; The five cores outside the Galactic Zone. DLC04GZ_StarCores_OutsideTotal is 5 and
+	; these are exactly the DLC04GZExternalStarCore* refs of DLCNukaWorld.esm; none of
+	; them is initially disabled or has an enable parent, so IsDisabled() means "taken"
+	; for the four loose ones, and the one wall panel lands in LockedStarCorePanels.
+	; In vanilla all five are TEMPORARY refs, which GetFormFromFile() cannot reach
+	; while their cell is unloaded - the plugin overrides them as persistent for that
+	; (tools/vanilla_overrides.py). Without that override these come back None.
+	outsideCores = new ObjectReference[5]
+	outsideCores[0] = Game.GetFormFromFile(0x01031995, NUKAWORLD) as ObjectReference	; 02 Dry Rock Gulch
+	outsideCores[1] = Game.GetFormFromFile(0x010319CE, NUKAWORLD) as ObjectReference	; 03 Bottling Plant
+	outsideCores[2] = Game.GetFormFromFile(0x010319CF, NUKAWORLD) as ObjectReference	; 04 Nukacade
+	outsideCores[3] = Game.GetFormFromFile(0x010319D6, NUKAWORLD) as ObjectReference	; 05 Junkyard (panel)
+	outsideCores[4] = Game.GetFormFromFile(0x01054CA8, NUKAWORLD) as ObjectReference	; 06 Nuka-Town Market
+	Debug.TraceUser(LOG_NAME, "resolved outside cores = " + outsideCores)
 
 	coreAliases = new Int[6]
 	coreAliases[0] = 42		; GalacticZoneExteriorCores
@@ -56,10 +79,21 @@ Int Function Rebuild(RefCollectionAlias mine)
 		EndIf
 		i += 1
 	EndWhile
+	; Alias 47 above is always empty (see the script header), so the cores outside the
+	; Galactic Zone come from the hand-written list. Adding them unconditionally is
+	; safe: the filter below drops the ones already taken, exactly as for the rest.
+	i = 0
+	While i < outsideCores.Length
+		If outsideCores[i] != None
+			mine.AddRef(outsideCores[i])
+		EndIf
+		i += 1
+	EndWhile
+
 	If mine.GetCount() != lastRawCount
 		lastRawCount = mine.GetCount()
 		Debug.TraceUser(LOG_NAME, "vanilla core collections:" + zoneCounts \
-			+ " => " + lastRawCount + " before filtering")
+			+ " + " + outsideCores.Length + " outside => " + lastRawCount + " before filtering")
 	EndIf
 
 	; Belt and braces. A core taken before DLC04GZTrackingQuest reached stage 10 is
