@@ -23,6 +23,13 @@ Everything is copied byte for byte out of the installed DLCNukaWorld.esm at buil
 so nothing vanilla lives in this repository. FormIDs need no remapping: the output
 plugin's masters are [Fallout4.esm, DLCNukaWorld.esm] and DLCNukaWorld.esm's own
 masters are [Fallout4.esm], so index 00 and 01 mean the same file in both.
+
+The copied WRLD and CELL records keep their FULL names byte for byte, and those are
+NOT text: DLCNukaWorld.esm is localized, so a FULL is a 4-byte id into
+DLCNukaWorld_<lang>.STRINGS. That is why this plugin is localized too and ships its own
+STRINGS files carrying the same ids (see localized_strings.py). Dropping FULL is no way
+out either: an override without a name blanks it, and the game then shows the default
+"Wasteland" on load doors and in save names. build() returns the ids it copied.
 """
 
 import struct
@@ -62,11 +69,26 @@ def _persistent(raw_refr):
     return raw_refr[:8] + struct.pack('<I', flags | REC_PERSISTENT) + raw_refr[12:]
 
 
-def _strip_offsets(raw_wrld):
-    """WRLD minus OFST/CLSZ: those are cell offsets into DLCNukaWorld.esm itself and
-    mean nothing inside another file."""
-    sig, size, flags, fid, rev, ver, unk = _REC.unpack_from(raw_wrld, 0)
-    body = raw_wrld[24:]
+def _full_id(raw):
+    """String id held in a copied record's FULL, or None if it has no name."""
+    flags = _REC.unpack_from(raw, 0)[2]
+    body = raw[24:]
+    if flags & REC_COMPRESSED:
+        body = zlib.decompress(body[4:])
+    pos = 0
+    while pos + 6 <= len(body):
+        tag, n = struct.unpack_from('<4sH', body, pos)
+        if tag == b'FULL':
+            return struct.unpack_from('<I', body, pos + 6)[0]
+        pos += 6 + n
+    return None
+
+
+def _strip(raw, drop):
+    """A copied record minus the subrecords in `drop` (OFST/CLSZ of a WRLD: cell
+    offsets into DLCNukaWorld.esm itself, meaningless inside another file)."""
+    sig, size, flags, fid, rev, ver, unk = _REC.unpack_from(raw, 0)
+    body = raw[24:]
     if flags & REC_COMPRESSED:
         body = zlib.decompress(body[4:])
         flags &= ~REC_COMPRESSED
@@ -84,7 +106,7 @@ def _strip_offsets(raw_wrld):
             n, big = big, None
         payload = body[pos:pos + n]
         pos += n
-        if tag in (b'OFST', b'CLSZ'):
+        if tag in drop:
             continue
         if n > 0xFFFF:
             out.append(struct.pack('<4sHI', b'XXXX', 4, n) + struct.pack('<4sH', tag, 0))
@@ -153,7 +175,7 @@ class _Scan:
 
 
 def build(path=NUKAWORLD_ESM, wanted=OUTSIDE_CORES):
-    """Returns (cell_top_group, wrld_top_group, record_count) as bytes."""
+    """Returns (cell_top_group, wrld_top_group, record_count, name_string_ids)."""
     scan = _Scan(path, wanted)
     found = [struct.unpack_from('<I', r, 12)[0] for *_, r in scan.interior] + \
             [struct.unpack_from('<I', r, 12)[0] for _, r in scan.exterior]
@@ -162,6 +184,7 @@ def build(path=NUKAWORLD_ESM, wanted=OUTSIDE_CORES):
         raise SystemExit('в %s не найдены REFR: %s' % (path, ', '.join('%08X' % v for v in sorted(missing))))
 
     count = 0
+    copied = []    # every WRLD/CELL copied as a parent record
 
     # Interiors: block > sub-block > cell, each level merged.
     tree = {}
@@ -175,6 +198,7 @@ def build(path=NUKAWORLD_ESM, wanted=OUTSIDE_CORES):
             cells = []
             for cell_fid, (raw_cell, refs) in sorted(tree[block][subblock].items()):
                 persistent = _grup(cell_fid, GRUP_CELL_PERSISTENT, b''.join(refs))
+                copied.append(raw_cell)
                 cells.append(raw_cell + _grup(cell_fid, GRUP_CELL_CHILDREN, persistent))
                 count += 1 + 2 + len(refs)
             subs.append(_grup(subblock, GRUP_INTERIOR_SUBBLOCK, b''.join(cells)))
@@ -196,10 +220,12 @@ def build(path=NUKAWORLD_ESM, wanted=OUTSIDE_CORES):
         pcell_fid = struct.unpack_from('<I', raw_pcell, 12)[0]
         refs = by_world[world]
         persistent = _grup(pcell_fid, GRUP_CELL_PERSISTENT, b''.join(refs))
+        copied += [raw_pcell, scan.worlds[world]]
         children = raw_pcell + _grup(pcell_fid, GRUP_CELL_CHILDREN, persistent)
-        worlds.append(_strip_offsets(scan.worlds[world]) + _grup(world, GRUP_WORLD_CHILDREN, children))
+        worlds.append(_strip(scan.worlds[world], (b'OFST', b'CLSZ')) + _grup(world, GRUP_WORLD_CHILDREN, children))
         count += 1 + 1 + 1 + 2 + len(refs)
     wrld_top = _grup(0x444C5257, 0, b''.join(worlds))
     count += 1
 
-    return cell_top, wrld_top, count
+    name_ids = sorted({i for i in map(_full_id, copied) if i is not None})
+    return cell_top, wrld_top, count, name_ids

@@ -34,9 +34,15 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from esp_writer import TES4_LIGHT, Record, Script, tes4, top_group, vmad, zstring
+import localized_strings
 import vanilla_overrides
 
 PLUGIN_NAME = 'StarCoreAndCappyMarkers.esp'
+
+# TES4 flag Localized: FULL/NNAM are ids into Strings/<plugin>_<lang>.STRINGS. Needed
+# since 1.1.1 for the names of the WRLD/CELL records copied from DLCNukaWorld.esm -
+# see vanilla_overrides.py and localized_strings.py.
+TES4_LOCALIZED = 0x00000080
 
 # 0x800 was the single combined quest shipped by the first build. Both quests get a
 # fresh FormID so that old record disappears from an existing save outright, instead
@@ -70,19 +76,23 @@ def quest_dnam(flags, priority, quest_type):
     return struct.pack('<HBBfI', flags, priority, 0, 0.0, quest_type)
 
 
-def marker_quest(form_id, editor_id, script_name, quest_name, objective_text, alias_name):
+def lstring(strings, text):
+    return struct.pack('<I', strings.id(text))
+
+
+def marker_quest(strings, form_id, editor_id, script_name, quest_name, objective_text, alias_name):
     rec = Record(b'QUST', form_id, editor_id)
     # Vanilla omits the fragment/alias trailer entirely when there are neither
     # (see RadioInstituteQuest), so a plain script list is all this needs.
     rec.add(b'VMAD', vmad([Script(script_name)]))
-    rec.add(b'FULL', zstring(quest_name))
+    rec.add(b'FULL', lstring(strings, quest_name))
     rec.add(b'DNAM', quest_dnam(QUEST_FLAG_START_GAME_ENABLED,
                                 QUEST_PRIORITY, QUEST_TYPE_MISCELLANEOUS))
     rec.add(b'NEXT', b'')
 
     rec.add(b'QOBJ', struct.pack('<H', OBJECTIVE_INDEX))
     rec.add(b'FNAM', struct.pack('<I', 0))
-    rec.add(b'NNAM', zstring(objective_text))
+    rec.add(b'NNAM', lstring(strings, objective_text))
     # QSTA: alias(i32) flags(u32) keyword(FormID)
     rec.add(b'QSTA', struct.pack('<iII', COLLECTION_ALIAS, 0, 0))
 
@@ -99,13 +109,13 @@ def marker_quest(form_id, editor_id, script_name, quest_name, objective_text, al
     return rec
 
 
-def build_quests():
+def build_quests(strings):
     return [
-        marker_quest(STARCORE_QUEST_ID, 'SCCM_StarCoreQuest', 'SCCM:StarCoreMarkers',
+        marker_quest(strings, STARCORE_QUEST_ID, 'SCCM_StarCoreQuest', 'SCCM:StarCoreMarkers',
                      'Nuka-World: Star Cores',
                      'Find the remaining Star Cores',
                      'SCCM_RemainingStarCores'),
-        marker_quest(CAPPY_QUEST_ID, 'SCCM_CappyQuest', 'SCCM:CappyMarkers',
+        marker_quest(strings, CAPPY_QUEST_ID, 'SCCM_CappyQuest', 'SCCM:CappyMarkers',
                      'Nuka-World: Hidden Cappys',
                      'Find the remaining hidden Cappys',
                      'SCCM_RemainingCappys'),
@@ -115,21 +125,25 @@ def build_quests():
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'build', PLUGIN_NAME)
-    quests = build_quests()
+    strings = localized_strings.OwnStrings()
+    quests = build_quests(strings)
     if ESL:
         bad = [q.form_id for q in quests if not 0x800 <= (q.form_id & 0xFFFFFF) <= 0xFFF]
         if bad:
             raise SystemExit('FormID вне диапазона ESL 0x800..0xFFF: %s' % ', '.join('%08X' % v for v in bad))
     # Top groups in the vanilla order: CELL, WRLD, QUST.
-    cell_top, wrld_top, override_count = vanilla_overrides.build()
+    cell_top, wrld_top, override_count, name_ids = vanilla_overrides.build()
     quest_top = top_group(quests)
     num = override_count + len(quests) + 1
-    blob = tes4(MASTERS, num, NEXT_OBJECT_ID, flags=TES4_LIGHT if ESL else 0).to_bytes() \
+    blob = tes4(MASTERS, num, NEXT_OBJECT_ID, flags=TES4_LOCALIZED | (TES4_LIGHT if ESL else 0)).to_bytes() \
         + cell_top + wrld_top + quest_top
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, 'wb') as f:
         f.write(blob)
     print('%s  (%d bytes)' % (out, len(blob)))
+    strings_dir = os.path.join(os.path.dirname(out), 'Strings')
+    langs = localized_strings.write_all(strings_dir, os.path.splitext(PLUGIN_NAME)[0], name_ids, strings)
+    print('%s  (%s)' % (strings_dir, ' '.join(langs)))
 
 
 if __name__ == '__main__':

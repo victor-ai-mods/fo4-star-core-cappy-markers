@@ -87,6 +87,17 @@ The two interior ones stay in their cell (Bottling Plant, Nukacade); the three e
 ones move to their worldspace's persistent cell, which is where `DLCNukaWorld.esm`
 keeps all its own persistent exterior refs. The parent records are unchanged copies.
 
+The copied parent records carry one catch, fixed in 1.1.1: their names. `DLCNukaWorld.esm`
+is localized, so a `FULL` there is not text but a 4-byte id into
+`DLCNukaWorld_<lang>.STRINGS`. 1.1.0 copied those ids into a non-localized plugin, the
+game read the 4 bytes as text, and leaving Fizztop Grille showed garbage on the load door
+and in the save name (dropping `FULL` is no fix either: a nameless override shows
+"Wasteland"). Since 1.1.1 the plugin is **localized** and ships
+`Strings/StarCoreAndCappyMarkers_<lang>.*`: `tools/localized_strings.py` takes the four
+names under their vanilla ids out of `DLCNukaWorld - Main.ba2` at build time, for every
+language the DLC has, so each game shows the vanilla name in its own language. The
+mod's own quest texts live in the same files (English in all of them).
+
 That is the only reason for the `DLCNukaWorld.esm` master. Nothing else vanilla is
 changed, and the plugin can still be removed at any time.
 
@@ -118,8 +129,9 @@ python tools/gen_esp.py
     -o="build\scripts" -f="Institute_Papyrus_Flags.flg" -all
 ```
 
-Outputs `build/StarCoreAndCappyMarkers.esp` and three `build/scripts/SCCM/*.pex`.
-Install to `Data/` and `Data/Scripts/SCCM/` respectively, and enable the plugin.
+Outputs `build/StarCoreAndCappyMarkers.esp`, `build/Strings/*` (3 tables x 11 languages)
+and three `build/scripts/SCCM/*.pex`. Install to `Data/`, `Data/Strings/` and
+`Data/Scripts/SCCM/` respectively, and enable the plugin.
 
 `tools/gen_esp.py` documents the QUST byte layout, including the non-obvious one: a
 **Ref Collection Alias is its own array entry** — `ALCS` (alias id) + `ALMI` (max initial
