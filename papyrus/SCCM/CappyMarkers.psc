@@ -3,9 +3,15 @@ Scriptname SCCM:CappyMarkers extends SCCM:MarkerQuestBase
 
 Each of the 10 placed DLC04MS01CappyActivator refs sets its own stage on DLC04MS01
 when the player finds it (110, 115, 120 ... 155), so GetStageDone() answers per Cappy
-straight out of the save - nothing to track separately.}
+straight out of the save - nothing to track separately.
+
+DLC04MS01 is Start Game Enabled, so IsRunning() is true from the very first minute of
+any game with Nuka-World installed; 1.1.x gated on it and showed the Cappys long
+before Sierra ever asked for them. The real start of the hunt is stage 100.}
 
 Int Property CAPPY_QUEST = 0x01000806 AutoReadOnly Hidden	; DLC04MS01
+; "Sierra Petrovita asked for my help in finding 10 Hidden Cappy images in the park."
+Int Property STAGE_HUNT_GIVEN = 100 AutoReadOnly Hidden
 
 Quest cappyQuest
 ObjectReference[] cappyRefs
@@ -44,20 +50,20 @@ String Function Label()
 	Return "hidden cappys"
 EndFunction
 
-Int Function Rebuild(RefCollectionAlias mine)
-	; The hidden Cappys only exist once "Cappy in a Haystack" is under way, and the
-	; quest completing means the hunt is over.
-	If cappyQuest == None || !cappyQuest.IsRunning() || cappyQuest.IsCompleted()
-		Return 0
+ObjectReference[] Function Wanted()
+	ObjectReference[] left = new ObjectReference[0]
+	; Not before Sierra hands out the hunt, and nothing once the quest is over.
+	If cappyQuest == None || !cappyQuest.GetStageDone(STAGE_HUNT_GIVEN) \
+			|| !cappyQuest.IsRunning() || cappyQuest.IsCompleted()
+		Return left
 	EndIf
 
 	Int i = 0
 	While i < cappyRefs.Length
 		If cappyRefs[i] != None && !cappyQuest.GetStageDone(cappyStages[i])
-			mine.AddRef(cappyRefs[i])
+			left.Add(cappyRefs[i])
 		EndIf
 		i += 1
 	EndWhile
-
-	Return mine.GetCount()
+	Return left
 EndFunction

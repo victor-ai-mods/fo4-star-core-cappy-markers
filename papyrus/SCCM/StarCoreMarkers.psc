@@ -12,20 +12,29 @@ at all in DLCNukaWorld.esm and is only ever used as the fallback bucket a core r
 to when it belongs to no zone collection. It stays empty forever, so the five cores
 outside the Galactic Zone - the "[n] in other park sectors" line on the Star Control
 terminal, which is read off the DLC04GZ_StarCores_Outside* globals instead - have to
-be named here by hand.}
+be named here by hand.
+
+Nothing is shown before "Star Control" (DLC04GZMainQuest) reaches stage 50, the point
+where the mainframe tells the player it needs Star Cores.}
 
 Int Property TRACKING_QUEST = 0x0101E34C AutoReadOnly Hidden	; DLC04GZTrackingQuest
 ; DLC04GZTrackingQuest alias 2: panels that have been emptied (or locked shut).
 Int Property ALIAS_LOCKED_PANELS = 2 AutoReadOnly Hidden
+Int Property MAIN_QUEST = 0x0101E34A AutoReadOnly Hidden	; DLC04GZMainQuest, "Star Control"
+; "In order to restart it, I need to find a component it calls a Star Core."
+Int Property STAGE_FIND_CORES = 50 AutoReadOnly Hidden
 
 Quest trackingQuest
+Quest mainQuest
 Int[] coreAliases
 ObjectReference[] outsideCores
 Int lastRawCount = -1
 
 Function Resolve()
 	trackingQuest = Game.GetFormFromFile(TRACKING_QUEST, NUKAWORLD) as Quest
-	Debug.TraceUser(LOG_NAME, "resolved DLC04GZTrackingQuest = " + trackingQuest)
+	mainQuest = Game.GetFormFromFile(MAIN_QUEST, NUKAWORLD) as Quest
+	Debug.TraceUser(LOG_NAME, "resolved DLC04GZTrackingQuest = " + trackingQuest \
+		+ ", DLC04GZMainQuest = " + mainQuest)
 
 	; The five cores outside the Galactic Zone. DLC04GZ_StarCores_OutsideTotal is 5 and
 	; these are exactly the DLC04GZExternalStarCore* refs of DLCNukaWorld.esm; none of
@@ -57,61 +66,65 @@ String Function Label()
 	Return "star cores"
 EndFunction
 
-Int Function Rebuild(RefCollectionAlias mine)
-	If trackingQuest == None
-		Return 0
+ObjectReference[] Function Wanted()
+	ObjectReference[] left = new ObjectReference[0]
+	If trackingQuest == None || mainQuest == None || !mainQuest.GetStageDone(STAGE_FIND_CORES)
+		Return left
 	EndIf
 
-	; No gate on DLC04GZTrackingQuest's stage here on purpose. Its stage 10 (the one
-	; that runs SetupStarCoreCollections) is flagged Run On Start, so it should always
-	; be done - but if that ever read back false the mod would silently show nothing,
-	; which is exactly the failure mode that makes these marker mods look broken. An
-	; empty collection already hides the objective, so the check bought nothing.
+	; Belt and braces in Keep(): a core taken before DLC04GZTrackingQuest reached stage
+	; 10 is removed from the WRONG collection by the vanilla script (it falls back to
+	; GalacticZoneOutsideCores), so it can still be sitting in its zone collection.
+	; Such a core is either a disabled loose-core activator or an emptied wall panel,
+	; and an emptied panel always lands in LockedStarCorePanels.
+	RefCollectionAlias locked = trackingQuest.GetAlias(ALIAS_LOCKED_PANELS) as RefCollectionAlias
+
+	Int raw = 0
+	Int[] zoneCounts = new Int[coreAliases.Length]
 	Int i = 0
-	String zoneCounts = ""
 	While i < coreAliases.Length
 		RefCollectionAlias zone = trackingQuest.GetAlias(coreAliases[i]) as RefCollectionAlias
-		If zone == None
-			zoneCounts = zoneCounts + " " + coreAliases[i] + ":none"
-		Else
-			mine.AddRefCollection(zone)
-			zoneCounts = zoneCounts + " " + coreAliases[i] + ":" + zone.GetCount()
+		zoneCounts[i] = -1
+		If zone != None
+			Int n = zone.GetCount()
+			zoneCounts[i] = n
+			raw += n
+			Int j = 0
+			While j < n
+				Keep(left, zone.GetAt(j), locked)
+				j += 1
+			EndWhile
 		EndIf
 		i += 1
 	EndWhile
 	; Alias 47 above is always empty (see the script header), so the cores outside the
 	; Galactic Zone come from the hand-written list. Adding them unconditionally is
-	; safe: the filter below drops the ones already taken, exactly as for the rest.
+	; safe: Keep() drops the ones already taken, exactly as for the rest.
 	i = 0
 	While i < outsideCores.Length
-		If outsideCores[i] != None
-			mine.AddRef(outsideCores[i])
-		EndIf
+		Keep(left, outsideCores[i], locked)
 		i += 1
 	EndWhile
 
-	If mine.GetCount() != lastRawCount
-		lastRawCount = mine.GetCount()
-		Debug.TraceUser(LOG_NAME, "vanilla core collections:" + zoneCounts \
-			+ " + " + outsideCores.Length + " outside => " + lastRawCount + " before filtering")
+	If raw != lastRawCount
+		lastRawCount = raw
+		String counts = ""
+		i = 0
+		While i < coreAliases.Length
+			counts = counts + " " + coreAliases[i] + ":" + zoneCounts[i]
+			i += 1
+		EndWhile
+		Debug.TraceUser(LOG_NAME, "vanilla core collections:" + counts \
+			+ " + " + outsideCores.Length + " outside => " + left.Length + " left")
 	EndIf
+	Return left
+EndFunction
 
-	; Belt and braces. A core taken before DLC04GZTrackingQuest reached stage 10 is
-	; removed from the WRONG collection by the vanilla script (it falls back to
-	; GalacticZoneOutsideCores), so it can still be sitting in its zone collection.
-	; Such a core is either a disabled loose-core activator or an emptied wall panel,
-	; and an emptied panel always lands in LockedStarCorePanels.
-	RefCollectionAlias locked = trackingQuest.GetAlias(ALIAS_LOCKED_PANELS) as RefCollectionAlias
-	Int n = mine.GetCount()
-	While n > 0
-		n -= 1
-		ObjectReference core = mine.GetAt(n)
-		If core == None
-			; nothing to remove
-		ElseIf core.IsDisabled() || (locked != None && locked.Find(core) > -1)
-			mine.RemoveRef(core)
-		EndIf
-	EndWhile
-
-	Return mine.GetCount()
+Function Keep(ObjectReference[] left, ObjectReference core, RefCollectionAlias locked)
+	If core == None || core.IsDisabled() || (locked != None && locked.Find(core) > -1)
+		Return
+	EndIf
+	If left.Find(core) < 0
+		left.Add(core)
+	EndIf
 EndFunction
