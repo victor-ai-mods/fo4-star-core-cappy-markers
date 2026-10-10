@@ -37,13 +37,16 @@ tracks a whole quest rather than a single objective: two objectives sharing a qu
 only ever be tracked together.
 
 Each quest's script (`SCCM:StarCoreMarkers` / `SCCM:CappyMarkers`, sharing
-`SCCM:MarkerQuestBase` for the timer and objective plumbing) refills its collection:
+`SCCM:MarkerQuestBase` for the timer and objective plumbing) works out what is still
+left to find:
 
-**Star Cores** — `DLC04GZTrackingQuest` (`0101E34C`) holds six ref-collection aliases,
+**Star Cores** — nothing is shown before *Star Control* (`DLC04GZMainQuest`,
+`0101E34A`) reaches stage 50, where the mainframe tells the player it needs Star Cores.
+From then on: `DLC04GZTrackingQuest` (`0101E34C`) holds six ref-collection aliases,
 one per zone (ids 42–47), and `dlc04gztrackingqueststarcorecollection.pex` calls
 `RemoveRef()` the moment a core is taken. So those collections *are* the list of
-remaining cores, already accurate in any save. The script copies them with
-`AddRefCollection()` and then drops anything that is disabled (a taken loose core) or
+remaining cores, already accurate in any save. The script reads them and then drops
+anything that is disabled (a taken loose core) or
 sits in `LockedStarCorePanels` (an emptied wall panel) — that last filter only
 matters for cores taken before the tracking quest reached stage 10, where vanilla
 removes the ref from the wrong collection.
@@ -66,9 +69,28 @@ panel that lands in `LockedStarCorePanels`.
 
 **Hidden Cappys** — the 10 placed `DLC04MS01CappyActivator` refs each set their own
 stage on `DLC04MS01` when found (110, 115, 120 … 155), so `GetStageDone()` answers per
-Cappy. The objective is hidden unless *Cappy in a Haystack* is running and unfinished.
+Cappy. Nothing is shown before stage 100, where Sierra asks the player to find the
+Cappys, or after the quest is over. Stage 100 and not `IsRunning()`: `DLC04MS01` is
+Start Game Enabled, so it runs from the first minute of every game with Nuka-World, and
+1.1.x — which checked `IsRunning()` — showed the Cappys long before Sierra mentioned them.
 
 Both objectives hide themselves when nothing is left to find.
+
+**Refreshing.** The timer fires every 8 s but only does the work while the player is
+inside `DLC04NukaWorldLocation` (`01008060`) — the parent location of the park, all of
+its interiors and the separate Nuka-Town market world, i.e. of every place a Star Core
+or a Cappy can be picked up. Elsewhere the collection stays as it is, because nothing in
+it can change there. After a game load the lists are refreshed once wherever the player
+is. The script keeps a mirror array of its collection and only calls `AddRef()` /
+`RemoveRef()` for what actually changed, so a poll with nothing new leaves the markers
+untouched.
+
+**On-screen messages.** `SetObjectiveDisplayed()` is called only when the objective
+should switch between shown and hidden, and without `abForce`. So the HUD announces
+"Find the remaining …" once per quest — when Star Control or Sierra sends the player
+looking — and never again on a game load or after a pickup. (1.1.x forced it, which
+re-announced both objectives after every load.) A picked-up item's marker still
+disappears on its own as soon as the ref leaves the collection.
 
 ### Five persistent overrides (and the DLCNukaWorld.esm master)
 
