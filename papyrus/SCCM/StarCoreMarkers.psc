@@ -14,8 +14,12 @@ outside the Galactic Zone - the "[n] in other park sectors" line on the Star Con
 terminal, which is read off the DLC04GZ_StarCores_Outside* globals instead - have to
 be named here by hand.
 
-Nothing is shown before "Star Control" (DLC04GZMainQuest) reaches stage 50, the point
-where the mainframe tells the player it needs Star Cores.}
+Nothing is shown until the player knows about Star Cores: "Star Control"
+(DLC04GZMainQuest) has reached stage 50, where the mainframe tells the player it needs
+them, or the player already holds or has installed a core. Stage 50 alone is not
+enough: the Star Control terminal sets it only while no core is installed, and the
+mainframe slots take a core before the terminal is ever used - a player who installs
+one first goes straight to stage 80 and never gets stage 50.}
 
 Int Property TRACKING_QUEST = 0x0101E34C AutoReadOnly Hidden	; DLC04GZTrackingQuest
 ; DLC04GZTrackingQuest alias 2: panels that have been emptied (or locked shut).
@@ -23,9 +27,16 @@ Int Property ALIAS_LOCKED_PANELS = 2 AutoReadOnly Hidden
 Int Property MAIN_QUEST = 0x0101E34A AutoReadOnly Hidden	; DLC04GZMainQuest, "Star Control"
 ; "In order to restart it, I need to find a component it calls a Star Core."
 Int Property STAGE_FIND_CORES = 50 AutoReadOnly Hidden
+; Kept by DLC04GZTrackingQuest: cores in the player's inventory (set on every pickup)
+; and cores installed in the mainframe.
+Int Property CORES_PLAYER_GLOBAL = 0x0104CBD6 AutoReadOnly Hidden	; DLC04GZ_StarCoresPlayer
+Int Property CORES_INSTALLED_GLOBAL = 0x0101FAC8 AutoReadOnly Hidden	; DLC04GZ_StarCoresInstalled
 
 Quest trackingQuest
 Quest mainQuest
+GlobalVariable coresPlayer
+GlobalVariable coresInstalled
+Bool loggedStart = False
 Int[] coreAliases
 ObjectReference[] outsideCores
 Int lastRawCount = -1
@@ -35,6 +46,11 @@ Function Resolve()
 	mainQuest = Game.GetFormFromFile(MAIN_QUEST, NUKAWORLD) as Quest
 	Debug.TraceUser(LOG_NAME, "resolved DLC04GZTrackingQuest = " + trackingQuest \
 		+ ", DLC04GZMainQuest = " + mainQuest)
+	coresPlayer = Game.GetFormFromFile(CORES_PLAYER_GLOBAL, NUKAWORLD) as GlobalVariable
+	coresInstalled = Game.GetFormFromFile(CORES_INSTALLED_GLOBAL, NUKAWORLD) as GlobalVariable
+	Debug.TraceUser(LOG_NAME, "resolved DLC04GZ_StarCoresPlayer = " + coresPlayer \
+		+ ", DLC04GZ_StarCoresInstalled = " + coresInstalled)
+	loggedStart = False
 
 	; The five cores outside the Galactic Zone. DLC04GZ_StarCores_OutsideTotal is 5 and
 	; these are exactly the DLC04GZExternalStarCore* refs of DLCNukaWorld.esm; none of
@@ -68,7 +84,7 @@ EndFunction
 
 ObjectReference[] Function Wanted()
 	ObjectReference[] left = new ObjectReference[0]
-	If trackingQuest == None || mainQuest == None || !mainQuest.GetStageDone(STAGE_FIND_CORES)
+	If trackingQuest == None || !HuntStarted()
 		Return left
 	EndIf
 
@@ -118,6 +134,24 @@ ObjectReference[] Function Wanted()
 			+ " + " + outsideCores.Length + " outside => " + left.Length + " left")
 	EndIf
 	Return left
+EndFunction
+
+Bool Function HuntStarted()
+	String why = ""
+	If mainQuest != None && mainQuest.GetStageDone(STAGE_FIND_CORES)
+		why = "Star Control stage 50"
+	ElseIf coresPlayer != None && coresPlayer.GetValueInt() > 0
+		why = "player holds " + coresPlayer.GetValueInt() + " core(s)"
+	ElseIf coresInstalled != None && coresInstalled.GetValueInt() > 0
+		why = coresInstalled.GetValueInt() + " core(s) installed"
+	Else
+		Return False
+	EndIf
+	If !loggedStart
+		loggedStart = True
+		Debug.TraceUser(LOG_NAME, "star core hunt started: " + why)
+	EndIf
+	Return True
 EndFunction
 
 Function Keep(ObjectReference[] left, ObjectReference core, RefCollectionAlias locked)

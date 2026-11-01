@@ -40,8 +40,14 @@ Each quest's script (`SCCM:StarCoreMarkers` / `SCCM:CappyMarkers`, sharing
 `SCCM:MarkerQuestBase` for the timer and objective plumbing) works out what is still
 left to find:
 
-**Star Cores** — nothing is shown before *Star Control* (`DLC04GZMainQuest`,
-`0101E34A`) reaches stage 50, where the mainframe tells the player it needs Star Cores.
+**Star Cores** — nothing is shown until the player knows about Star Cores: *Star
+Control* (`DLC04GZMainQuest`, `0101E34A`) has reached stage 50, where the mainframe
+tells the player it needs Star Cores, **or** the player holds or has installed a core
+(`DLC04GZ_StarCoresPlayer` `0104CBD6` / `DLC04GZ_StarCoresInstalled` `0101FAC8` > 0).
+Stage 50 alone is not enough (1.2.0 checked only that): the Star Control terminal sets
+it on activation only while no core is installed, and the mainframe slots accept a core
+before the terminal was ever used — a player who installs one first goes straight to
+stage 80, stage 50 is never set, and 1.2.0 showed no core markers at all.
 From then on: `DLC04GZTrackingQuest` (`0101E34C`) holds six ref-collection aliases,
 one per zone (ids 42–47), and `dlc04gztrackingqueststarcorecollection.pex` calls
 `RemoveRef()` the moment a core is taken. So those collections *are* the list of
@@ -87,8 +93,8 @@ untouched.
 
 **On-screen messages.** `SetObjectiveDisplayed()` is called only when the objective
 should switch between shown and hidden, and without `abForce`. So the HUD announces
-"Find the remaining …" once per quest — when Star Control or Sierra sends the player
-looking — and never again on a game load or after a pickup. (1.1.x forced it, which
+"Find the remaining …" once per quest — when the Star Core hunt starts (see above) or
+Sierra sends the player looking — and never again on a game load or after a pickup. (1.1.x forced it, which
 re-announced both objectives after every load.) A picked-up item's marker still
 disappears on its own as soon as the ref leaves the collection.
 
